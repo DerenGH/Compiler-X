@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "741862254856",
+    "project_id": "compiler-x-71cad",
+    "storage_bucket": "compiler-x-71cad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:741862254856:android:50179222351448568e64bd",
+        "android_client_info": {
+          "package_name": "com.example.compilerx"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkOENYpBJ2AKZprfg0im36LOgUV4DOvSM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

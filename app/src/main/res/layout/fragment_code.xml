@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/appTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Compiler-X"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:fontFamily="sans-serif-medium"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <ImageButton
+            android:id="@+id/btnMenu"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="64dp"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:background="@android:color/transparent"
+            app:tint="#FFFFFF"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <Button
+            android:id="@+id/btnRun"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginTop="64dp"
+            android:backgroundTint="#4CAF50"
+            android:text="Run"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            app:cornerRadius="12dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <HorizontalScrollView
+            android:id="@+id/tabsScrollView"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:scrollbars="none"
+            app:layout_constraintTop_toBottomOf="@id/btnMenu"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+            <LinearLayout
+                android:id="@+id/tabsLayout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"> </LinearLayout>
+        </HorizontalScrollView>
+
+        <HorizontalScrollView
+            android:id="@+id/helperScrollView"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="#1E1E1E"
+            android:padding="4dp"
+            android:scrollbars="none"
+            app:layout_constraintTop_toBottomOf="@id/tabsScrollView"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+            <LinearLayout
+                android:id="@+id/helperBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <EditText
+            android:id="@+id/codeEditor"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/editor_bg"
+            android:gravity="top|start"
+            android:fontFamily="monospace"
+            android:padding="12dp"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:inputType="textMultiLine|textNoSuggestions|textVisiblePassword"
+            android:scrollHorizontally="true"
+            android:scrollbars="horizontal|vertical"
+            app:layout_constraintTop_toBottomOf="@id/helperScrollView"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/nav_view"
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="#1E1E1E">
+
+        <LinearLayout
+            android:id="@+id/menuRoot"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/menuTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="CompilerX Files"
+                android:textColor="#4CAF50"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:paddingBottom="20dp" />
+
+            <Button
+                android:id="@+id/menuNewProject"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="New Project"
+                android:backgroundTint="#333333"
+                android:textColor="#FFFFFF"
+                android:gravity="start|center_vertical"
+                android:paddingStart="16dp"
+                android:textAllCaps="false" />
+
+            <Button
+                android:id="@+id/menuOpenFile"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Open File"
+                android:backgroundTint="#333333"
+                android:textColor="#FFFFFF"
+                android:gravity="start|center_vertical"
+                android:paddingStart="16dp"
+                android:textAllCaps="false" />
+
+            <Button
+                android:id="@+id/menuSaveFile"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Download / Save"
+                android:backgroundTint="#333333"
+                android:textColor="#FFFFFF"
+                android:gravity="start|center_vertical"
+                android:paddingStart="16dp"
+                android:textAllCaps="false" />
+
+            <Button
+                android:id="@+id/menuShare"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Share Code"
+                android:backgroundTint="#333333"
+                android:textColor="#FFFFFF"
+                android:gravity="start|center_vertical"
+                android:paddingStart="16dp"
+                android:textAllCaps="false" />
+        </LinearLayout>
+    </com.google.android.material.navigation.NavigationView>
+
+</androidx.drawerlayout.widget.DrawerLayout>

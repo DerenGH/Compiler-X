@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Base.Theme.CompilerX" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#FFFFFF</item>
+        <item name="android:windowBackground">#121212</item>
+        <item name="android:statusBarColor">#121212</item>
+
+        <item name="android:navigationBarColor">#121212</item>
+    </style>
+
+    <style name="Theme.CompilerX" parent="Base.Theme.CompilerX" />
+
+    <style name="CustomIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">#333333</item>
+
+        <item name="android:width">76dp</item>
+        <item name="android:height">54dp</item>
+    </style>
+</resources>
