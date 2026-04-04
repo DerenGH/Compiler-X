@@ -9,6 +9,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.Spanned
 import android.text.TextWatcher
@@ -29,7 +31,10 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
     private val projectFiles = HashMap<String, String>()
     private var activeFileName: String? = null
     private val consoleLogs = mutableListOf<String>()
-    private var programInput: String = ""
+
+    // Real-time stream variables
+    private var terminalOutStream = PipedOutputStream()
+    private var pythonStdin: PipedInputStream? = null
 
     private val CREATE_FILE = 1
     private val PICK_FILE = 2
@@ -138,6 +143,16 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         val textInt = Color.parseColor(textColor)
         val editorInt = Color.parseColor(editorBg)
         val accentInt = Color.parseColor(accentColor)
+
+        // Fix for Tablet Status Bar and Navigation Bar
+        val window = requireActivity().window
+        window.statusBarColor = bgInt
+        window.navigationBarColor = bgInt
+        if (themeIndex == 1) {
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        } else {
+            window.decorView.systemUiVisibility = 0
+        }
 
         val sizes = arrayOf(12f, 14f, 16f, 18f, 22f)
         val sizeIndex = prefs.getInt("font_size_index", 1)
@@ -267,55 +282,15 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         when (ext) {
             "html", "css", "js" -> showWebPreview()
             "py" -> {
-                if (code.contains("input(")) {
-                    showInputDialog { input ->
-                        programInput = input + "\n"
-                        showConsole()
-                        runFullPython(code)
-                    }
-                } else {
-                    showConsole()
-                    runFullPython(code)
-                }
+                showConsole()
+                runFullPython(code)
             }
             "java" -> {
-                if (code.contains("Scanner") || code.contains("System.in")) {
-                    showInputDialog { input ->
-                        programInput = input + "\n"
-                        showConsole()
-                        runFullJava(code)
-                    }
-                } else {
-                    showConsole()
-                    runFullJava(code)
-                }
+                showConsole()
+                runFullJava(code)
             }
             else -> Toast.makeText(requireContext(), "Create/Select a file first", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun showInputDialog(callback: (String) -> Unit) {
-        val dialog = Dialog(requireContext())
-        dialog.setContentView(R.layout.dialog_new_project)
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-
-        applyThemeToDialog(dialog.findViewById(android.R.id.content))
-
-        val etInput = dialog.findViewById<EditText>(R.id.etProjectName)
-        val btnSend = dialog.findViewById<Button>(R.id.btnCreate)
-        val spinner = dialog.findViewById<Spinner>(R.id.dialogLanguageSpinner)
-        val title = dialog.findViewById<TextView>(R.id.textView2)
-
-        spinner?.visibility = View.GONE
-        title?.text = "Program Input Required"
-        etInput?.hint = "Enter input here"
-        btnSend?.text = "SEND"
-
-        btnSend?.setOnClickListener {
-            callback(etInput.text.toString())
-            dialog.dismiss()
-        }
-        dialog.show()
     }
 
     private var currentConsoleDialog: Dialog? = null
@@ -325,59 +300,114 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         currentConsoleDialog = dialog
 
+        val etInput = dialog.findViewById<EditText>(R.id.etTerminalInput)
+        val btnSend = dialog.findViewById<ImageButton>(R.id.btnSendInput)
+
+        // Reset the real-time stream for this run
+        terminalOutStream = PipedOutputStream()
+        pythonStdin = PipedInputStream(terminalOutStream)
+
+        btnSend.setOnClickListener {
+            val text = etInput.text.toString()
+            if (text.isNotEmpty()) {
+                consoleLogs.add("> $text")
+                updateConsoleUI()
+                Thread {
+                    try {
+                        terminalOutStream.write((text + "\n").toByteArray())
+                        terminalOutStream.flush()
+                    } catch (e: Exception) {}
+                }.start()
+                etInput.setText("")
+            }
+        }
+
         dialog.findViewById<Button>(R.id.btnExitConsole).setOnClickListener { dialog.dismiss() }
         updateConsoleUI()
         dialog.show()
     }
 
     private fun runFullPython(code: String) {
-        try {
-            val py = Python.getInstance()
-            val sys = py.getModule("sys")
-            val io = py.getModule("io")
+        Thread {
+            try {
+                val py = Python.getInstance()
+                val sys = py.getModule("sys")
+                val io = py.getModule("io")
 
-            val outputStream = io.callAttr("StringIO")
-            sys.put("stdout", outputStream)
-            sys.put("stderr", outputStream)
+                val outputStream = io.callAttr("StringIO")
+                sys.put("stdout", outputStream)
+                sys.put("stderr", outputStream)
 
-            val inputStream = io.callAttr("StringIO", programInput)
-            sys.put("stdin", inputStream)
+                // Attach the real-time pipe. Python input() will wait for the pipe.
+                sys.put("stdin", pythonStdin)
 
-            val mainModule = py.getModule("__main__")
-            py.getBuiltins()?.get("exec")?.call(code, mainModule?.get("__dict__"))
+                val mainModule = py.getModule("__main__")
 
-            val result = outputStream.callAttr("getvalue").toString()
-            consoleLogs.add(result.ifEmpty { "> Process finished." })
-        } catch (e: Exception) {
-            consoleLogs.add("> ERROR: ${e.message}")
-        } finally {
-            programInput = ""
-            updateConsoleUI()
-        }
+                // UI Poller to show text WHILE code is running
+                val handler = Handler(Looper.getMainLooper())
+                val poller = object : Runnable {
+                    override fun run() {
+                        val currentOut = outputStream.callAttr("getvalue").toString()
+                        if (currentOut.isNotEmpty()) {
+                            // Only add if there is fresh data
+                            val outLines = currentOut.trimEnd().split("\n")
+                            if (outLines.size > (consoleLogs.filter { !it.startsWith(">") }.size)) {
+                                consoleLogs.add(outLines.last())
+                                updateConsoleUI()
+                            }
+                        }
+                        if (currentConsoleDialog?.isShowing == true) handler.postDelayed(this, 300)
+                    }
+                }
+                handler.post(poller)
+
+                py.getBuiltins()?.get("exec")?.call(code, mainModule?.get("__dict__"))
+
+                val finalResult = outputStream.callAttr("getvalue").toString()
+                handler.removeCallbacks(poller)
+                activity?.runOnUiThread {
+                    if (finalResult.isNotEmpty()) {
+                        consoleLogs.add("> Process finished.")
+                    } else {
+                        consoleLogs.add("> Process finished.")
+                    }
+                    updateConsoleUI()
+                }
+            } catch (e: Exception) {
+                activity?.runOnUiThread {
+                    consoleLogs.add("> ERROR: ${e.message}")
+                    updateConsoleUI()
+                }
+            }
+        }.start()
     }
 
     private fun runFullJava(code: String) {
-        val outputStream = ByteArrayOutputStream()
-        val printStream = PrintStream(outputStream)
-        val oldOut = System.out; val oldErr = System.err; val oldIn = System.`in`
+        Thread {
+            val outputStream = ByteArrayOutputStream()
+            val printStream = PrintStream(outputStream)
+            val oldOut = System.out; val oldErr = System.err; val oldIn = System.`in`
 
-        if (programInput.isNotEmpty()) {
-            System.setIn(ByteArrayInputStream(programInput.toByteArray()))
-        }
-        System.setOut(printStream); System.setErr(printStream)
+            System.setIn(pythonStdin) // Reuse the same pipe for Java
+            System.setOut(printStream); System.setErr(printStream)
 
-        try {
-            val interpreter = bsh.Interpreter()
-            interpreter.eval(code)
-            val result = outputStream.toString()
-            consoleLogs.add(result.ifEmpty { "> Process finished." })
-        } catch (e: Exception) {
-            consoleLogs.add("> ERROR: ${e.message}")
-        } finally {
-            System.setOut(oldOut); System.setErr(oldErr); System.setIn(oldIn)
-            programInput = ""
-            updateConsoleUI()
-        }
+            try {
+                val interpreter = bsh.Interpreter()
+                interpreter.eval(code)
+                val result = outputStream.toString()
+                activity?.runOnUiThread {
+                    consoleLogs.add(result.ifEmpty { "> Process finished." })
+                    updateConsoleUI()
+                }
+            } catch (e: Exception) {
+                activity?.runOnUiThread {
+                    consoleLogs.add("> ERROR: ${e.message}")
+                    updateConsoleUI()
+                }
+            } finally {
+                System.setOut(oldOut); System.setErr(oldErr); System.setIn(oldIn)
+            }
+        }.start()
     }
 
     private fun updateConsoleUI() {
