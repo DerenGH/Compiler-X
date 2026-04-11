@@ -8,9 +8,11 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.Spanned
 import android.text.TextWatcher
@@ -25,14 +27,21 @@ import androidx.fragment.app.Fragment
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.io.*
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+
+class CodeViewModel : ViewModel() {
+    val projectFiles = HashMap<String, String>()
+    val fileUris = HashMap<String, Uri>()
+    var activeFileName: String? = null
+}
 
 class CodeFragment : Fragment(R.layout.fragment_code) {
 
-    private val projectFiles = HashMap<String, String>()
-    private var activeFileName: String? = null
-    private val consoleLogs = mutableListOf<String>()
+    // These now reference the ViewModel instead of local memory
+    private lateinit var viewModel: CodeViewModel
 
-    // Real-time stream variables
+    private val consoleLogs = mutableListOf<String>()
     private var terminalOutStream = PipedOutputStream()
     private var pythonStdin: PipedInputStream? = null
 
@@ -48,6 +57,11 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Initialize ViewModel first
+        viewModel = ViewModelProvider(requireActivity()).get(CodeViewModel::class.java)
+
+        requireActivity().requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(requireContext()))
         }
@@ -56,7 +70,6 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         btnMenu = view.findViewById(R.id.btnMenu)
         val tabsLayout: LinearLayout = view.findViewById(R.id.tabsLayout)
         val helperBar: LinearLayout = view.findViewById(R.id.helperBar)
-
         btnRun = view.findViewById(R.id.btnRun)
         codeEditor = view.findViewById(R.id.codeEditor)
 
@@ -66,13 +79,34 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
 
         codeEditor.setHorizontallyScrolling(true)
 
+        // --- STATE RESTORATION FROM VIEWMODEL ---
+        if (viewModel.projectFiles.isNotEmpty()) {
+            tabsLayout.removeAllViews()
+            // We use a temporary list to avoid ConcurrentModificationException while re-adding
+            val currentFiles = HashMap(viewModel.projectFiles)
+            currentFiles.forEach { (name, content) ->
+                // This adds the tab back to the UI
+                addFileToProject(name, content, tabsLayout, codeEditor)
+            }
+
+            // Restore the editor text and active tab highlight
+            viewModel.activeFileName?.let { name ->
+                codeEditor.setText(viewModel.projectFiles[name])
+                forceSelectTab(name)
+            }
+        }
+
         codeEditor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                if (s == null || isApplyingHighlights) return
+                if (s == null) return
+                // Update ViewModel immediately
+                viewModel.activeFileName?.let { viewModel.projectFiles[it] = s.toString() }
+
+                if (isApplyingHighlights) return
                 isApplyingHighlights = true
-                val ext = activeFileName?.substringAfterLast(".", "") ?: ""
+                val ext = viewModel.activeFileName?.substringAfterLast(".", "") ?: ""
                 try {
                     when (ext) {
                         "py" -> applyPythonHighlighting(s)
@@ -107,10 +141,26 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         }
 
         menuSaveFile.setOnClickListener {
+            if (viewModel.activeFileName == null) {
+                Toast.makeText(requireContext(), "Create a file first", Toast.LENGTH_SHORT).show()
+                drawerLayout.closeDrawer(GravityCompat.START)
+                return@setOnClickListener
+            }
+
+            val extension = viewModel.activeFileName?.substringAfterLast(".", "txt") ?: "txt"
+            val mimeType = when (extension) {
+                "py" -> "text/x-python"
+                "java" -> "text/x-java-source"
+                "html" -> "text/html"
+                "css" -> "text/css"
+                "js" -> "application/javascript"
+                else -> "text/plain"
+            }
+
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TITLE, activeFileName ?: "code.txt")
+                type = mimeType
+                putExtra(Intent.EXTRA_TITLE, viewModel.activeFileName)
             }
             startActivityForResult(intent, CREATE_FILE)
             drawerLayout.closeDrawer(GravityCompat.START)
@@ -144,15 +194,10 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         val editorInt = Color.parseColor(editorBg)
         val accentInt = Color.parseColor(accentColor)
 
-        // Fix for Tablet Status Bar and Navigation Bar
         val window = requireActivity().window
         window.statusBarColor = bgInt
         window.navigationBarColor = bgInt
-        if (themeIndex == 1) {
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-        } else {
-            window.decorView.systemUiVisibility = 0
-        }
+        window.decorView.systemUiVisibility = if (themeIndex == 1) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR else 0
 
         val sizes = arrayOf(12f, 14f, 16f, 18f, 22f)
         val sizeIndex = prefs.getInt("font_size_index", 1)
@@ -204,16 +249,6 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
             }
         }
 
-        val bottomNav = requireActivity().findViewById<View>(R.id.bottom_navigation)
-        bottomNav?.let { nav ->
-            nav.background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadii = floatArrayOf(45f, 45f, 45f, 45f, 0f, 0f, 0f, 0f)
-                setColor(bgInt)
-                setStroke(2, Color.parseColor("#33FFFFFF"))
-            }
-        }
-
         codeEditor.background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = 30f
@@ -221,11 +256,11 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         }
         codeEditor.setTextColor(textInt)
 
-        val helperBar = root.findViewById<LinearLayout>(R.id.helperBar)
-        helperBar?.setBackgroundColor(bgInt)
+        val hBar = root.findViewById<LinearLayout>(R.id.helperBar)
+        hBar?.setBackgroundColor(bgInt)
 
-        for (i in 0 until (helperBar?.childCount ?: 0)) {
-            val child = helperBar?.getChildAt(i)
+        for (i in 0 until (hBar?.childCount ?: 0)) {
+            val child = hBar?.getChildAt(i)
             if (child is Button) {
                 child.background = GradientDrawable().apply {
                     cornerRadius = 15f
@@ -272,12 +307,22 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
 
     private fun handleRunSequence() {
         val prefs = requireActivity().getSharedPreferences("CompilerX_Prefs", Context.MODE_PRIVATE)
-        activeFileName?.let { projectFiles[it] = codeEditor.text.toString() }
+        viewModel.activeFileName?.let { name ->
+            val code = codeEditor.text.toString()
+            viewModel.projectFiles[name] = code
+            viewModel.fileUris[name]?.let { uri ->
+                try {
+                    requireContext().contentResolver.openOutputStream(uri, "wt")?.use {
+                        it.write(code.toByteArray())
+                    }
+                } catch (e: Exception) {}
+            }
+        }
 
         if (prefs.getBoolean("clear_console", true)) consoleLogs.clear()
 
         val code = codeEditor.text.toString()
-        val ext = activeFileName?.substringAfterLast(".", "") ?: ""
+        val ext = viewModel.activeFileName?.substringAfterLast(".", "") ?: ""
 
         when (ext) {
             "html", "css", "js" -> showWebPreview()
@@ -303,7 +348,6 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         val etInput = dialog.findViewById<EditText>(R.id.etTerminalInput)
         val btnSend = dialog.findViewById<ImageButton>(R.id.btnSendInput)
 
-        // Reset the real-time stream for this run
         terminalOutStream = PipedOutputStream()
         pythonStdin = PipedInputStream(terminalOutStream)
 
@@ -338,39 +382,66 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
                 sys.put("stdout", outputStream)
                 sys.put("stderr", outputStream)
 
-                // Attach the real-time pipe. Python input() will wait for the pipe.
-                sys.put("stdin", pythonStdin)
+                val bridgeCode = """
+import io
+import time
+import sys
+
+class ConsoleInputStream(io.RawIOBase):
+    def __init__(self, java_stream):
+        self.stream = java_stream
+    def readable(self):
+        return True
+    def readinto(self, b):
+        try:
+            while True:
+                available = self.stream.available()
+                if available > 0:
+                    to_read = min(len(b), available)
+                    temp = bytearray(to_read)
+                    n = self.stream.read(temp)
+                    b[:n] = temp[:n]
+                    return n
+                else:
+                    time.sleep(0.05)
+        except:
+            return 0
+
+def setup_stdin(java_stream):
+    raw_io = ConsoleInputStream(java_stream)
+    sys.stdin = io.TextIOWrapper(io.BufferedReader(raw_io), line_buffering=True)
+            """.trimIndent()
 
                 val mainModule = py.getModule("__main__")
+                py.getBuiltins()?.get("exec")?.call(bridgeCode, mainModule?.get("__dict__"))
+                mainModule?.get("setup_stdin")?.call(pythonStdin)
 
-                // UI Poller to show text WHILE code is running
+                var lastIndex = 0
                 val handler = Handler(Looper.getMainLooper())
                 val poller = object : Runnable {
                     override fun run() {
-                        val currentOut = outputStream.callAttr("getvalue").toString()
-                        if (currentOut.isNotEmpty()) {
-                            // Only add if there is fresh data
-                            val outLines = currentOut.trimEnd().split("\n")
-                            if (outLines.size > (consoleLogs.filter { !it.startsWith(">") }.size)) {
-                                consoleLogs.add(outLines.last())
-                                updateConsoleUI()
+                        val fullOutput = outputStream.callAttr("getvalue").toString()
+                        if (fullOutput.length > lastIndex) {
+                            val newText = fullOutput.substring(lastIndex)
+                            newText.split("\n").forEach { line ->
+                                if (line.isNotEmpty()) {
+                                    activity?.runOnUiThread {
+                                        consoleLogs.add(line)
+                                        updateConsoleUI()
+                                    }
+                                }
                             }
+                            lastIndex = fullOutput.length
                         }
-                        if (currentConsoleDialog?.isShowing == true) handler.postDelayed(this, 300)
+                        if (currentConsoleDialog?.isShowing == true) {
+                            handler.postDelayed(this, 100)
+                        }
                     }
                 }
                 handler.post(poller)
-
                 py.getBuiltins()?.get("exec")?.call(code, mainModule?.get("__dict__"))
-
-                val finalResult = outputStream.callAttr("getvalue").toString()
-                handler.removeCallbacks(poller)
                 activity?.runOnUiThread {
-                    if (finalResult.isNotEmpty()) {
-                        consoleLogs.add("> Process finished.")
-                    } else {
-                        consoleLogs.add("> Process finished.")
-                    }
+                    consoleLogs.add("> Process finished.")
                     updateConsoleUI()
                 }
             } catch (e: Exception) {
@@ -387,16 +458,15 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
             val outputStream = ByteArrayOutputStream()
             val printStream = PrintStream(outputStream)
             val oldOut = System.out; val oldErr = System.err; val oldIn = System.`in`
-
-            System.setIn(pythonStdin) // Reuse the same pipe for Java
+            System.setIn(pythonStdin)
             System.setOut(printStream); System.setErr(printStream)
-
             try {
                 val interpreter = bsh.Interpreter()
                 interpreter.eval(code)
                 val result = outputStream.toString()
                 activity?.runOnUiThread {
-                    consoleLogs.add(result.ifEmpty { "> Process finished." })
+                    result.split("\n").filter { it.isNotEmpty() }.forEach { consoleLogs.add(it) }
+                    consoleLogs.add("> Process finished.")
                     updateConsoleUI()
                 }
             } catch (e: Exception) {
@@ -411,12 +481,13 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
     }
 
     private fun updateConsoleUI() {
+        val ctx = context ?: return
         activity?.runOnUiThread {
             if (currentConsoleDialog?.isShowing == true) {
                 val container = currentConsoleDialog?.findViewById<LinearLayout>(R.id.consoleLogContainer)
                 container?.removeAllViews()
                 for (log in consoleLogs) {
-                    container?.addView(TextView(requireContext()).apply {
+                    container?.addView(TextView(ctx).apply {
                         text = log
                         setTextColor(Color.GREEN)
                         setPadding(10, 5, 10, 5)
@@ -515,7 +586,7 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
                     return true
                 }
             }
-            val finalData = "<html><head><style>${projectFiles["style.css"] ?: ""}</style></head><body>${projectFiles["index.html"] ?: ""}<script>${projectFiles["script.js"] ?: ""}</script></body></html>"
+            val finalData = "<html><head><style>${viewModel.projectFiles["style.css"] ?: ""}</style></head><body>${viewModel.projectFiles["index.html"] ?: ""}<script>${viewModel.projectFiles["script.js"] ?: ""}</script></body></html>"
             loadDataWithBaseURL(null, finalData, "text/html", "UTF-8", null)
         }
         root.addView(webView)
@@ -524,18 +595,23 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
     }
 
     private fun addFileToProject(fileName: String, content: String, tabsContainer: LinearLayout, editor: EditText) {
-        projectFiles[fileName] = content
+        viewModel.projectFiles[fileName] = content
+        for (i in 0 until tabsContainer.childCount) {
+            if ((tabsContainer.getChildAt(i) as TextView).text == fileName) return
+        }
         val tab = TextView(requireContext()).apply {
             text = fileName; setPadding(40, 20, 40, 20); setTextColor(Color.LTGRAY)
             typeface = Typeface.MONOSPACE
         }
         tab.setOnClickListener {
-            activeFileName?.let { projectFiles[it] = editor.text.toString() }
+            viewModel.activeFileName?.let { viewModel.projectFiles[it] = editor.text.toString() }
             for (i in 0 until tabsContainer.childCount) (tabsContainer.getChildAt(i) as TextView).setTextColor(Color.LTGRAY)
-            tab.setTextColor(Color.WHITE); activeFileName = fileName; editor.setText(projectFiles[fileName])
+            tab.setTextColor(Color.WHITE)
+            viewModel.activeFileName = fileName
+            editor.setText(viewModel.projectFiles[fileName])
         }
         tabsContainer.addView(tab)
-        if (tabsContainer.childCount == 1) tab.performClick()
+        if (tabsContainer.childCount == 1 && viewModel.activeFileName == null) tab.performClick()
     }
 
     private fun createHelperButton(txt: String, editor: EditText) = Button(requireContext()).apply {
@@ -549,21 +625,60 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         }
     }
 
+    private fun getFileName(uri: Uri): String {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            val cursor = requireContext().contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    result = it.getString(it.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path?.substringAfterLast('/')
+        }
+        return result ?: "file"
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != Activity.RESULT_OK) return
         val uri = data?.data ?: return
         val contentResolver = requireContext().contentResolver
+
         when (requestCode) {
             CREATE_FILE -> try {
-                contentResolver.openOutputStream(uri)?.use { it.write(codeEditor.text.toString().toByteArray()) }
+                contentResolver.openOutputStream(uri, "wt")?.use {
+                    it.write(codeEditor.text.toString().toByteArray())
+                }
+                viewModel.activeFileName?.let { viewModel.fileUris[it] = uri }
                 Toast.makeText(requireContext(), "Saved Successfully", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Save failed", Toast.LENGTH_SHORT).show()
+            }
+
             PICK_FILE -> try {
                 val content = contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: ""
-                val fileName = uri.path?.substringAfterLast("/") ?: "imported_file"
+                val fileName = getFileName(uri)
+                viewModel.fileUris[fileName] = uri
                 addFileToProject(fileName, content, requireView().findViewById(R.id.tabsLayout), codeEditor)
-            } catch (e: Exception) {}
+                codeEditor.setText(content)
+                forceSelectTab(fileName)
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Open failed", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun forceSelectTab(fileName: String) {
+        val tabsLayout: LinearLayout = view?.findViewById(R.id.tabsLayout) ?: return
+        for (i in 0 until tabsLayout.childCount) {
+            val tab = tabsLayout.getChildAt(i) as TextView
+            if (tab.text == fileName) {
+                tab.performClick()
+                break
+            }
         }
     }
 
@@ -590,7 +705,15 @@ class CodeFragment : Fragment(R.layout.fragment_code) {
         btnCreate.setOnClickListener {
             val name = etName.text.toString().trim()
             if (name.isEmpty()) return@setOnClickListener
-            projectFiles.clear(); tabs.removeAllViews()
+
+            // Update ViewModel
+            viewModel.projectFiles.clear()
+            viewModel.fileUris.clear()
+            viewModel.activeFileName = null
+
+            // Clear UI
+            tabs.removeAllViews()
+
             when(spinner.selectedItem.toString()) {
                 "HTML" -> {
                     addFileToProject("index.html", "<!DOCTYPE html>\n<html>\n<body>\n<h1>Hello!</h1>\n</body>\n</html>", tabs, editor)
