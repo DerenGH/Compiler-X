@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -93,12 +94,13 @@ class SettingsFragment : Fragment() {
 
     private fun applySettings(view: View) {
         val themeIndex = prefs.getInt("theme_index", 0)
+
         val (bgColor, textColor, cardBg, accentColor, innerCardTextColor) = when (themeIndex) {
-            0 -> arrayOf("#000000", "#FFFFFF", "#121212", "#4CAF50", "#FFFFFF") // Midnight (Dark)
-            1 -> arrayOf("#F0F0F0", "#000000", "#FFFFFF", "#2196F3", "#000000") // High Contrast (Light - Text Fixed)
-            2 -> arrayOf("#0D1117", "#9CDCFE", "#161B22", "#58A6FF", "#9CDCFE") // VS Dark (Dark)
-            3 -> arrayOf("#1B2B34", "#6699CC", "#233139", "#6699CC", "#6699CC") // Oceanic (Dark)
-            else -> arrayOf("#000000", "#FFFFFF", "#121212", "#4CAF50", "#FFFFFF")
+            0 -> arrayOf("#121212", "#FFFFFF", "#1E1E1E", "#4CAF50", "#FFFFFF")
+            1 -> arrayOf("#F0F0F0", "#000000", "#FFFFFF", "#2196F3", "#000000")
+            2 -> arrayOf("#0D1117", "#9CDCFE", "#161B22", "#58A6FF", "#9CDCFE")
+            3 -> arrayOf("#1B2B34", "#6699CC", "#233139", "#6699CC", "#6699CC")
+            else -> arrayOf("#121212", "#FFFFFF", "#1E1E1E", "#4CAF50", "#FFFFFF")
         }
 
         val bgInt = Color.parseColor(bgColor)
@@ -107,48 +109,50 @@ class SettingsFragment : Fragment() {
         val accentInt = Color.parseColor(accentColor)
         val innerTextInt = Color.parseColor(innerCardTextColor)
 
-        val root = view.findViewById<View>(R.id.main)
-        root?.setBackgroundColor(bgInt)
+        // 1. Root Background
+        view.findViewById<View>(R.id.main)?.setBackgroundColor(bgInt)
 
-        val btnLogOut = view.findViewById<Button>(R.id.btnLogOut)
-        btnLogOut?.apply {
-            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.RED)
-            setTextColor(Color.WHITE)
-        }
+        // 2. Card Styling - Modern Smooth Corners
+        val cardRadius = 60f
+        val cardStrokeColor = Color.parseColor("#33FFFFFF")
 
-        val cardShape = GradientDrawable().apply {
-            cornerRadius = 30f
+        fun getCardDrawable() = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = cardRadius
             setColor(cardInt)
+            setStroke(3, cardStrokeColor)
         }
-        view.findViewById<View>(R.id.profileCard)?.background = cardShape
-        view.findViewById<View>(R.id.visualEngineCard)?.background = cardShape
-        view.findViewById<View>(R.id.executionCard)?.background = cardShape
 
+        view.findViewById<View>(R.id.profileCard)?.background = getCardDrawable()
+        view.findViewById<View>(R.id.visualEngineCard)?.background = getCardDrawable()
+        view.findViewById<View>(R.id.executionCard)?.background = getCardDrawable()
+
+        // 3. Header Text Colors
         view.findViewById<TextView>(R.id.settings_title)?.setTextColor(accentInt)
-
         view.findViewById<TextView>(R.id.labelVisualEngineHeader)?.setTextColor(accentInt)
         view.findViewById<TextView>(R.id.labelExecutionEngineHeader)?.setTextColor(accentInt)
 
-        val generalCardText = listOf(R.id.tvSettingsUsername, R.id.tvSettingsEmail, R.id.labelTheme, R.id.labelFontSize, R.id.labelAutoSave, R.id.labelClearConsole)
-        generalCardText.forEach { view.findViewById<TextView>(it)?.setTextColor(textInt) }
+        val labels = listOf(R.id.tvSettingsUsername, R.id.tvSettingsEmail, R.id.labelTheme, R.id.labelFontSize, R.id.labelAutoSave, R.id.labelClearConsole)
+        labels.forEach { view.findViewById<TextView>(it)?.setTextColor(textInt) }
 
+        // 4. Spinner Text Colors
         (view.findViewById<Spinner>(R.id.spinnerTheme)?.selectedView as? TextView)?.setTextColor(innerTextInt)
         (view.findViewById<Spinner>(R.id.spinnerFontSize)?.selectedView as? TextView)?.setTextColor(innerTextInt)
 
+        // 5. BOTTOM NAVIGATION FIX
         val activityNav = requireActivity().findViewById<View>(R.id.bottom_navigation)
         activityNav?.let { nav ->
-            val background = nav.background
-            if (background is GradientDrawable) {
-                background.setColor(bgInt)
-            } else {
-                val newShape = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadii = floatArrayOf(45f, 45f, 45f, 45f, 0f, 0f, 0f, 0f)
-                    setColor(bgInt)
-                    setStroke(2, Color.parseColor("#33FFFFFF"))
-                }
-                nav.background = newShape
+            val navRadius = 80f // Slightly larger for that "floating" look
+            val navShape = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                // 8 values: [TL, TL, TR, TR, BR, BR, BL, BL]
+                // We round the Top-Left and Top-Right, keep bottom flat
+                cornerRadii = floatArrayOf(navRadius, navRadius, navRadius, navRadius, 0f, 0f, 0f, 0f)
+                setColor(cardInt)
+                setStroke(4, cardStrokeColor)
             }
+            nav.background = navShape
+            nav.elevation = 20f
         }
     }
 }

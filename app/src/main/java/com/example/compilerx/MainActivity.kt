@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_chat -> {
-                    loadFragment(ChatFragment())
+                    loadFragment(QuizFragment())
                     true
                 }
                 R.id.nav_settings -> {

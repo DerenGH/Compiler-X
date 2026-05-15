@@ -1,0 +1,101 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Select Subject"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <RadioGroup
+        android:id="@+id/rgSubjects"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/rbPython"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:background="@drawable/selector_chip"
+            android:button="@null"
+            android:gravity="center"
+            android:padding="12dp"
+            android:text="Python"
+            android:textColor="#FFFFFF" />
+
+        <RadioButton
+            android:id="@+id/rbHtml"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:background="@drawable/selector_chip"
+            android:button="@null"
+            android:gravity="center"
+            android:padding="12dp"
+            android:text="HTML"
+            android:textColor="#FFFFFF" />
+
+        <RadioButton
+            android:id="@+id/rbJava"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:background="@drawable/selector_chip"
+            android:button="@null"
+            android:gravity="center"
+            android:padding="12dp"
+            android:text="Java"
+            android:textColor="#FFFFFF" />
+    </RadioGroup>
+
+    <TextView
+        android:id="@+id/tvNumQuestions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:text="Number of Questions: 5"
+        android:textColor="#BBBBBB" />
+
+    <SeekBar
+        android:id="@+id/sbQuestions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:max="10"
+        android:progress="5"
+        android:progressTint="#2E7D32"
+        android:thumbTint="#2E7D32" />
+
+    <Button
+        android:id="@+id/btnStartQuiz"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginTop="40dp"
+        android:backgroundTint="#2E7D32"
+        android:text="START QUIZ"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        app:cornerRadius="12dp" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/swTimer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enable Timer"
+        android:textColor="#FFFFFF"
+        android:checked="true" />
+
+</LinearLayout>
