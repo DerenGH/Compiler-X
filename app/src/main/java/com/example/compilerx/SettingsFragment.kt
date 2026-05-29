@@ -39,9 +39,17 @@ class SettingsFragment : Fragment() {
         val switchAutoSave = view.findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.switchAutoSave)
         val switchClearConsole = view.findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.switchClearConsole)
 
-        val currentUser = mAuth.currentUser
-        tvUser.text = currentUser?.displayName ?: "Developer"
-        tvEmail.text = currentUser?.email ?: "Offline"
+        // Check if user entered via Guest Mode
+        val isGuest = prefs.getBoolean("is_guest", false)
+
+        if (isGuest) {
+            tvUser.text = "Guest"
+            tvEmail.text = "Offline Mode"
+        } else {
+            val currentUser = mAuth.currentUser
+            tvUser.text = currentUser?.displayName ?: "Developer"
+            tvEmail.text = currentUser?.email ?: "Offline"
+        }
 
         switchAutoSave.isChecked = prefs.getBoolean("auto_save", false)
         switchClearConsole.isChecked = prefs.getBoolean("clear_console", true)
@@ -55,6 +63,9 @@ class SettingsFragment : Fragment() {
 
         btnLogOut.setOnClickListener {
             mAuth.signOut()
+            // Clear the local state flag when logging out
+            prefs.edit().putBoolean("is_guest", false).apply()
+
             startActivity(Intent(requireContext(), AuthActivity::class.java))
             requireActivity().finishAffinity()
         }
@@ -95,11 +106,12 @@ class SettingsFragment : Fragment() {
     private fun applySettings(view: View) {
         val themeIndex = prefs.getInt("theme_index", 0)
 
+        // Updated Soft-Dark hex values to correct the transparent layout issue and align selection hues
         val (bgColor, textColor, cardBg, accentColor, innerCardTextColor) = when (themeIndex) {
-            0 -> arrayOf("#121212", "#FFFFFF", "#1E1E1E", "#4CAF50", "#FFFFFF")
-            1 -> arrayOf("#F0F0F0", "#000000", "#FFFFFF", "#2196F3", "#000000")
-            2 -> arrayOf("#0D1117", "#9CDCFE", "#161B22", "#58A6FF", "#9CDCFE")
-            3 -> arrayOf("#1B2B34", "#6699CC", "#233139", "#6699CC", "#6699CC")
+            0 -> arrayOf("#121212", "#FFFFFF", "#1E1E1E", "#4CAF50", "#FFFFFF") // Midnight (Green)
+            1 -> arrayOf("#F0F0F0", "#000000", "#FFFFFF", "#2196F3", "#000000") // High Contrast (Blue)
+            2 -> arrayOf("#0D1117", "#9CDCFE", "#161B22", "#BD93F9", "#9CDCFE") // VS Dark (Purple)
+            3 -> arrayOf("#1B2B34", "#6699CC", "#233139", "#6699CC", "#6699CC") // Oceanic (Cyan)
             else -> arrayOf("#121212", "#FFFFFF", "#1E1E1E", "#4CAF50", "#FFFFFF")
         }
 
@@ -109,10 +121,10 @@ class SettingsFragment : Fragment() {
         val accentInt = Color.parseColor(accentColor)
         val innerTextInt = Color.parseColor(innerCardTextColor)
 
-        // 1. Root Background
+        // 1. Base Container Background
         view.findViewById<View>(R.id.main)?.setBackgroundColor(bgInt)
 
-        // 2. Card Styling - Modern Smooth Corners
+        // 2. Individual Content Cards - Fixed Rounded Borders
         val cardRadius = 60f
         val cardStrokeColor = Color.parseColor("#33FFFFFF")
 
@@ -127,7 +139,7 @@ class SettingsFragment : Fragment() {
         view.findViewById<View>(R.id.visualEngineCard)?.background = getCardDrawable()
         view.findViewById<View>(R.id.executionCard)?.background = getCardDrawable()
 
-        // 3. Header Text Colors
+        // 3. Section Label Typography Updates
         view.findViewById<TextView>(R.id.settings_title)?.setTextColor(accentInt)
         view.findViewById<TextView>(R.id.labelVisualEngineHeader)?.setTextColor(accentInt)
         view.findViewById<TextView>(R.id.labelExecutionEngineHeader)?.setTextColor(accentInt)
@@ -135,24 +147,33 @@ class SettingsFragment : Fragment() {
         val labels = listOf(R.id.tvSettingsUsername, R.id.tvSettingsEmail, R.id.labelTheme, R.id.labelFontSize, R.id.labelAutoSave, R.id.labelClearConsole)
         labels.forEach { view.findViewById<TextView>(it)?.setTextColor(textInt) }
 
-        // 4. Spinner Text Colors
+        // 4. Input Controls Theme Synchronization
         (view.findViewById<Spinner>(R.id.spinnerTheme)?.selectedView as? TextView)?.setTextColor(innerTextInt)
         (view.findViewById<Spinner>(R.id.spinnerFontSize)?.selectedView as? TextView)?.setTextColor(innerTextInt)
 
-        // 5. BOTTOM NAVIGATION FIX
-        val activityNav = requireActivity().findViewById<View>(R.id.bottom_navigation)
+        // 5. Solid Floating Navigation Layout Configuration
+        val activityNav = requireActivity().findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottom_navigation)
         activityNav?.let { nav ->
-            val navRadius = 80f // Slightly larger for that "floating" look
+            val navRadius = 80f
             val navShape = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                // 8 values: [TL, TL, TR, TR, BR, BR, BL, BL]
-                // We round the Top-Left and Top-Right, keep bottom flat
                 cornerRadii = floatArrayOf(navRadius, navRadius, navRadius, navRadius, 0f, 0f, 0f, 0f)
-                setColor(cardInt)
+                setColor(cardInt) // Set solid background color to fix transparency bugs
                 setStroke(4, cardStrokeColor)
             }
             nav.background = navShape
             nav.elevation = 20f
+
+            // Create selection states dynamically so icons shift color cleanly to match your themes
+            val itemStates = ColorStateList(
+                arrayOf(
+                    intArrayOf(android.R.attr.state_checked),
+                    intArrayOf(-android.R.attr.state_checked)
+                ),
+                intArrayOf(accentInt, Color.parseColor("#8B949E"))
+            )
+            nav.itemIconTintList = itemStates
+            nav.itemTextColor = itemStates
         }
     }
 }

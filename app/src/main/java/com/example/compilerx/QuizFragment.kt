@@ -27,6 +27,21 @@ class QuizFragment : Fragment() {
         val rgSubjects = view.findViewById<RadioGroup>(R.id.rgSubjects)
         val sbQuestions = view.findViewById<SeekBar>(R.id.sbQuestions)
 
+        // Connects directly to your TextView ID from the XML layout below
+        val tvNumQuestions = view.findViewById<TextView>(R.id.tvNumQuestions)
+
+        // Real-time listener that changes your "Number of Questions: 5" text on drag
+        sbQuestions.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                // If progress hits 0, force it to display 1 question minimum
+                val realCount = if (progress < 1) 1 else progress
+                tvNumQuestions?.text = "Number of Questions: $realCount"
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
         btnStart.setOnClickListener {
             val selectedId = rgSubjects.checkedRadioButtonId
             if (selectedId == -1) {
@@ -41,9 +56,10 @@ class QuizFragment : Fragment() {
                 else -> "Python"
             }
 
-            // Get timer state and count at click time
             val swTimer = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.swTimer)
             val isTimerEnabled = swTimer?.isChecked ?: true
+
+            // Reads the chosen value when hitting the start button
             val count = if (sbQuestions.progress < 1) 1 else sbQuestions.progress
 
             startQuiz(subject, count, isTimerEnabled)
@@ -60,7 +76,6 @@ class QuizFragment : Fragment() {
 
                 if (allQuestions.isNotEmpty()) {
                     val selectedQuestions = allQuestions.shuffled().take(count)
-                    // Pass both parameters to fix the "No value passed" error
                     navigateToPlayScreen(selectedQuestions, timerEnabled)
                 }
             }
